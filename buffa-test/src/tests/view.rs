@@ -161,7 +161,7 @@ fn test_view_recursion_limit_exceeded() {
     let mut msg = Person::default();
     msg.address.get_or_insert_default().street = "1 Main St".into();
     let bytes = msg.encode_to_vec();
-    let result = PersonView::_decode_depth(&bytes, 0);
+    let result = PersonView::decode_view_with_limit(&bytes, 0);
     assert!(
         matches!(result, Err(buffa::DecodeError::RecursionLimitExceeded)),
         "expected RecursionLimitExceeded, got {result:?}"
@@ -187,14 +187,14 @@ fn test_unknown_group_respects_depth_budget() {
     // Via Person merge (owned path, preserve_unknown_fields=true by default
     // — decode_unknown_field is used there, which was already correct).
     // The view path is what was broken.
-    let result = PersonView::_decode_depth(&wire, 1);
+    let result = PersonView::decode_view_with_limit(&wire, 1);
     assert!(
         matches!(result, Err(buffa::DecodeError::RecursionLimitExceeded)),
         "unknown nested group must respect depth budget, got {result:?}"
     );
 
     // With depth=2, should succeed (one level per group).
-    let result = PersonView::_decode_depth(&wire, 2);
+    let result = PersonView::decode_view_with_limit(&wire, 2);
     assert!(result.is_ok(), "depth=2 should suffice, got {result:?}");
 }
 
