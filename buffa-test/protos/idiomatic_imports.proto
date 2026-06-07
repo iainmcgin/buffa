@@ -1,0 +1,68 @@
+// Exercises CodeGenConfig::idiomatic_imports: oneof variant types are
+// emitted as `use`-backed short names inside the message's
+// `__buffa::oneof::<msg>` module. Compiling this file with the flag on IS
+// the primary test; the runtime tests verify semantic equivalence with
+// default codegen.
+
+syntax = "proto3";
+
+package test.idiomatic;
+
+import "google/protobuf/timestamp.proto";
+
+// Referenced as a bare `Target` (via `use super::super::super::Target;`)
+// from Holder's oneof.
+message Target {
+  string name = 1;
+}
+
+// OuterA.Inner and OuterB.Inner share a leaf name; the second reference
+// falls down the alias ladder to parent-module qualification.
+message OuterA {
+  message Inner {
+    int32 a = 1;
+  }
+}
+
+message OuterB {
+  message Inner {
+    int32 b = 1;
+  }
+}
+
+message Holder {
+  oneof kind {
+    // Same-package message: `use …::Target;` + bare `Target`.
+    Target target = 1;
+    // Extern (WKT) message: `use ::buffa_types::google::protobuf::Timestamp;`.
+    google.protobuf.Timestamp at = 2;
+    // First Inner claims the bare name...
+    OuterA.Inner inner_a = 3;
+    // ...the second is qualified through its imported parent module.
+    OuterB.Inner inner_b = 4;
+    int32 num = 5;
+  }
+}
+
+// The oneof enum ident `Target` (from oneof `target`) occupies the
+// `__buffa::oneof::shadow_holder` scope, so the variant referencing message
+// `Target` must stay fully qualified.
+message ShadowHolder {
+  oneof target {
+    Target shadowed = 1;
+    int32 other = 2;
+  }
+}
+
+// A oneof inside a NESTED message: its enum lives one module level deeper
+// (`__buffa::oneof::outer::mid`), so its `use` directives carry an extra
+// `super::` hop.
+message Outer {
+  message Mid {
+    oneof kind {
+      Target deep_target = 1;
+      google.protobuf.Timestamp deep_at = 2;
+      OuterA.Inner deep_inner = 3;
+    }
+  }
+}

@@ -190,6 +190,9 @@ fn parse_config(params: &str) -> Result<PluginConfig, String> {
                 "strict_utf8" | "strict_utf8_mapping" => {
                     codegen.strict_utf8_mapping = value.trim() == "true"
                 }
+                // Experimental: `use`-backed short names for oneof variant
+                // types inside per-message `__buffa::oneof::…` modules.
+                "idiomatic_imports" => codegen.idiomatic_imports = value.trim() == "true",
                 "register_types" => codegen.emit_register_fn = value.trim() != "false",
                 // `with_setters=false` opts out of builder-style setter
                 // methods. Like `register_types`, the default is on, so the
@@ -277,6 +280,18 @@ mod tests {
     fn views_true() {
         let config = parse_config("views=true").unwrap();
         assert!(config.codegen.generate_views);
+    }
+
+    #[test]
+    fn idiomatic_imports_true() {
+        let config = parse_config("idiomatic_imports=true").unwrap();
+        assert!(config.codegen.idiomatic_imports);
+    }
+
+    #[test]
+    fn idiomatic_imports_defaults_off() {
+        let config = parse_config("").unwrap();
+        assert!(!config.codegen.idiomatic_imports);
     }
 
     #[test]

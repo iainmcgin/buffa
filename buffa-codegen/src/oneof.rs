@@ -8,7 +8,7 @@ use quote::{format_ident, quote};
 use crate::context::CodeGenContext;
 use crate::features::ResolvedFeatures;
 use crate::impl_message::{field_string_repr, field_uses_bytes};
-use crate::message::scalar_or_message_type_nested;
+use crate::message::scalar_or_message_type_scoped;
 use crate::CodeGenError;
 
 /// Returns `true` when a field's type is `google.protobuf.NullValue`.
@@ -60,6 +60,10 @@ struct VariantInfo {
     is_null_value: bool,
     /// True for message/group types (boxed in the owned enum).
     is_boxed: bool,
+    /// True when the variant type resolved to an extern crate path. Recorded
+    /// from the resolved path string because `rust_type` may be shortened by
+    /// idiomatic imports (a bare `Timestamp` no longer reveals extern-ness).
+    is_extern: bool,
     /// Custom attributes matched via `CodeGenConfig::field_attributes` on the
     /// variant's fully-qualified path (`{oneof_fqn}.{variant_proto_name}`).
     custom_attrs: TokenStream,
@@ -83,6 +87,7 @@ fn collect_variant_info(
     features: &ResolvedFeatures,
     resolver: &crate::imports::ImportResolver,
     nesting: usize,
+    imports: &mut crate::imports::ScopeImports,
 ) -> Result<Vec<VariantInfo>, CodeGenError> {
     let oneof_index = msg
         .oneof_decl
@@ -127,18 +132,25 @@ fn collect_variant_info(
             } else {
                 crate::StringRepr::String
             };
-            let rust_type = if use_bytes {
-                quote! { ::buffa::bytes::Bytes }
+            let resolved = if use_bytes {
+                crate::message::ScopedType {
+                    tokens: quote! { ::buffa::bytes::Bytes },
+                    is_extern: false,
+                }
             } else if field_type == Type::TYPE_STRING && !string_repr.is_default() {
-                string_repr.type_path(resolver)
+                crate::message::ScopedType {
+                    tokens: string_repr.type_path(resolver),
+                    is_extern: false,
+                }
             } else {
-                scalar_or_message_type_nested(
+                scalar_or_message_type_scoped(
                     ctx,
                     field,
                     current_package,
                     nesting + 3,
                     features,
                     resolver,
+                    imports,
                 )?
             };
             let variant_fqn = format!("{proto_fqn}.{oneof_name}.{proto_name}");
@@ -146,7 +158,8 @@ fn collect_variant_info(
                 CodeGenContext::matching_attributes(&ctx.config.field_attributes, &variant_fqn)?;
             Ok(VariantInfo {
                 variant_ident,
-                rust_type,
+                rust_type: resolved.tokens,
+                is_extern: resolved.is_extern,
                 json_name,
                 field_type,
                 is_boxed: is_boxed_variant(field_type),
@@ -177,6 +190,7 @@ pub fn generate_oneof_enum(
     resolver: &crate::imports::ImportResolver,
     oneof_idents: &std::collections::HashMap<usize, proc_macro2::Ident>,
     nesting: usize,
+    imports: &mut crate::imports::ScopeImports,
 ) -> Result<TokenStream, CodeGenError> {
     let rust_enum_ident = match oneof_idents.get(&idx) {
         Some(id) => id.clone(),
@@ -196,6 +210,7 @@ pub fn generate_oneof_enum(
         features,
         resolver,
         nesting,
+        imports,
     )?;
     if variants_info.is_empty() {
         return Ok(TokenStream::new());
@@ -238,9 +253,11 @@ pub fn generate_oneof_enum(
     // in google.api.expr.v1alpha1.Type.type_kind) — `From` would be ambiguous.
     //
     // Keying by TokenStream::to_string() is safe here: all rust_type values
-    // flow through scalar_or_message_type_nested -> rust_path_to_tokens,
+    // flow through scalar_or_message_type_scoped -> rust_path_to_tokens,
     // which produces token streams with identical structure for identical
-    // proto type names (so their string representations match).
+    // proto type names (so their string representations match). With
+    // idiomatic imports, the registry guarantees one short name per path,
+    // so identical types still match and distinct types still differ.
     let mut type_counts: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
     for v in variants_info.iter().filter(|v| v.is_boxed) {
@@ -252,7 +269,6 @@ pub fn generate_oneof_enum(
         .map(|v| {
             let ident = &v.variant_ident;
             let ty = &v.rust_type;
-            let ty_str = ty.to_string();
             // Extern-path types (WKTs resolved to ::buffa_types, or any
             // user-mapped ::crate path) are from another crate — see
             // context.rs:rust_type_relative. For those, the Option<_> impl
@@ -260,7 +276,9 @@ pub fn generate_oneof_enum(
             // uncover the local Oneof inside, and T is foreign → no local
             // type in the impl header. `crate::…` is treated as local for
             // orphan purposes (it IS the current crate) so only `::` gates.
-            let ty_is_extern = ty_str.trim_start().starts_with("::");
+            // `is_extern` is recorded at type-resolution time because the
+            // emitted tokens may be import-shortened (no leading `::`).
+            let ty_is_extern = v.is_extern;
             // From<T> for Oneof — always legal (Oneof is local in T0 position).
             let from_oneof = quote! {
                 impl From<#ty> for #rust_enum_ident {

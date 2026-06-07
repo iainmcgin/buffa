@@ -409,6 +409,19 @@ fn main() {
         .compile()
         .expect("buffa_build failed for with_setters.proto");
 
+    // Idiomatic imports (experimental) — oneof variant types emitted as
+    // `use`-backed short names inside per-message `__buffa::oneof` modules.
+    // Compiling the output (bare name, extern use, parent-module rung,
+    // reserved-name fallback, nested-depth hops, views sharing the trees)
+    // IS the main test; runtime tests verify wire-format equivalence with
+    // default codegen.
+    buffa_build::Config::new()
+        .files(&["protos/idiomatic_imports.proto"])
+        .includes(&["protos/"])
+        .idiomatic_imports(true)
+        .compile()
+        .expect("buffa_build failed for idiomatic_imports.proto");
+
     // Edition 2024 — requires protoc v30+ (stabilized edition 2024).
     // Older protoc rejects it with "later than the maximum supported edition".
     // Skip gracefully on older protoc so the crate still builds; tests are

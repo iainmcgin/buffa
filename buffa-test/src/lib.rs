@@ -66,6 +66,15 @@ pub mod wkt {
     buffa::include_proto!("test.wkt");
 }
 
+// Idiomatic imports (experimental): oneof variant types as `use`-backed
+// short names inside per-message `__buffa::oneof` modules. Compilation
+// exercises the bare-name, extern-use, parent-module-rung, reserved-name
+// and nested-depth paths.
+#[allow(clippy::derivable_impls, clippy::match_single_binding)]
+pub mod idiomatic {
+    buffa::include_proto!("test.idiomatic");
+}
+
 #[allow(clippy::derivable_impls, clippy::match_single_binding)]
 pub mod cross {
     buffa::include_proto!("test.cross");

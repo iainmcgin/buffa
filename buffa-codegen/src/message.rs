@@ -401,6 +401,17 @@ fn generate_message_with_nesting(
     // Oneof enum definitions — emitted inside the message's module.
     // Pass the file-level package as current_package, since
     // nesting=1 in the oneof codegen handles the module depth.
+    //
+    // `oneof_imports` is the idiomatic-imports registry for this message's
+    // `__buffa::oneof::<msg_path>` module (a per-message scope, so its
+    // contents are fully known despite `include!` merging at the package
+    // level). It collects `use` directives as variant types resolve; the
+    // recorded imports are emitted into the module by the `wrap` below.
+    // Disabled (pure pass-through) unless `idiomatic_imports` is set.
+    let mut oneof_imports = crate::imports::ScopeImports::new(
+        ctx.config.idiomatic_imports,
+        &oneof_module_scope_names(msg, &oneof_idents),
+    );
     let oneof_enums = msg
         .oneof_decl
         .iter()
@@ -417,6 +428,7 @@ fn generate_message_with_nesting(
                 resolver,
                 &oneof_idents,
                 nesting,
+                &mut oneof_imports,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -720,7 +732,10 @@ fn generate_message_with_nesting(
             }
         }
     };
-    let oneof_tree = wrap(quote! { #(#oneof_enums)* #nested_oneof_tree });
+    // Idiomatic-import `use` directives recorded while resolving this
+    // message's oneof variant types (empty unless `idiomatic_imports` is on).
+    let oneof_uses = oneof_imports.use_items();
+    let oneof_tree = wrap(quote! { #oneof_uses #(#oneof_enums)* #nested_oneof_tree });
     let view_oneof_tree = wrap(quote! { #own_view_oneofs #nested_view_oneof_tree });
     let view_tree = {
         let nested_wrapped = wrap(nested_view_tree);
@@ -1869,23 +1884,33 @@ pub(crate) fn scalar_or_message_type_nested(
     }
 }
 
-fn resolve_message_type(
+/// Resolve a message/enum field's referenced type to its relative Rust path
+/// string (`kind` is `"message"` or `"enum"`, for the error message).
+fn field_type_path(
     scope: MessageScope<'_>,
     field: &crate::generated::descriptor::FieldDescriptorProto,
-) -> Result<TokenStream, CodeGenError> {
+    kind: &str,
+) -> Result<String, CodeGenError> {
     let type_name = field
         .type_name
         .as_deref()
         .ok_or(CodeGenError::MissingField("field.type_name"))?;
-    let path_str = scope
+    scope
         .ctx
         .rust_type_relative(type_name, scope.current_package, scope.nesting)
         .ok_or_else(|| {
             CodeGenError::Other(format!(
-                "message type '{type_name}' not found in descriptor set; \
+                "{kind} type '{type_name}' not found in descriptor set; \
                  ensure all imports are included with --include_imports"
             ))
-        })?;
+        })
+}
+
+fn resolve_message_type(
+    scope: MessageScope<'_>,
+    field: &crate::generated::descriptor::FieldDescriptorProto,
+) -> Result<TokenStream, CodeGenError> {
+    let path_str = field_type_path(scope, field, "message")?;
     let ty = rust_path_to_tokens(&path_str);
     Ok(quote! { #ty })
 }
@@ -1895,19 +1920,7 @@ fn resolve_enum_type(
     field: &crate::generated::descriptor::FieldDescriptorProto,
     resolver: &crate::imports::ImportResolver,
 ) -> Result<TokenStream, CodeGenError> {
-    let type_name = field
-        .type_name
-        .as_deref()
-        .ok_or(CodeGenError::MissingField("field.type_name"))?;
-    let path_str = scope
-        .ctx
-        .rust_type_relative(type_name, scope.current_package, scope.nesting)
-        .ok_or_else(|| {
-            CodeGenError::Other(format!(
-                "enum type '{type_name}' not found in descriptor set; \
-                 ensure all imports are included with --include_imports"
-            ))
-        })?;
+    let path_str = field_type_path(scope, field, "enum")?;
     let ty = rust_path_to_tokens(&path_str);
     let field_features = crate::features::resolve_field(scope.ctx, field, scope.features);
     if is_closed_enum(&field_features) {
@@ -1916,6 +1929,95 @@ fn resolve_enum_type(
         let ev = resolver.enum_value();
         Ok(quote! { #ev<#ty> })
     }
+}
+
+/// A field type resolved through a [`ScopeImports`] registry.
+///
+/// `is_extern` is recorded from the resolved path string *before* shortening:
+/// the oneof codegen gates its `From<T> for Option<Oneof>` impls on it
+/// (orphan rule), and a shortened token stream (bare `Timestamp`) no longer
+/// reveals whether the type lives in another crate. Never re-derive
+/// extern-ness from `tokens`.
+///
+/// [`ScopeImports`]: crate::imports::ScopeImports
+pub(crate) struct ScopedType {
+    /// Tokens to emit at the use site (possibly import-shortened).
+    pub tokens: TokenStream,
+    /// Whether the type resolved to an extern crate path (leading `::`).
+    pub is_extern: bool,
+}
+
+/// Like [`scalar_or_message_type_nested`], but message/enum type paths are
+/// shortened through a per-module-scope [`ScopeImports`] registry (a no-op
+/// when `idiomatic_imports` is off). See [`ScopedType`] for the extern flag.
+///
+/// [`ScopeImports`]: crate::imports::ScopeImports
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn scalar_or_message_type_scoped(
+    ctx: &CodeGenContext,
+    field: &crate::generated::descriptor::FieldDescriptorProto,
+    current_package: &str,
+    nesting: usize,
+    features: &ResolvedFeatures,
+    resolver: &crate::imports::ImportResolver,
+    imports: &mut crate::imports::ScopeImports,
+) -> Result<ScopedType, CodeGenError> {
+    let scope = MessageScope {
+        ctx,
+        current_package,
+        proto_fqn: "",
+        features,
+        nesting,
+    };
+    match crate::impl_message::effective_type(ctx, field, features) {
+        Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
+            let path_str = field_type_path(scope, field, "message")?;
+            Ok(ScopedType {
+                is_extern: path_str.starts_with("::"),
+                tokens: imports.resolve(&path_str),
+            })
+        }
+        Type::TYPE_ENUM => {
+            let path_str = field_type_path(scope, field, "enum")?;
+            let is_extern = path_str.starts_with("::");
+            let ty = imports.resolve(&path_str);
+            let field_features = crate::features::resolve_field(ctx, field, features);
+            let tokens = if is_closed_enum(&field_features) {
+                quote! { #ty }
+            } else {
+                let ev = resolver.enum_value();
+                quote! { #ev<#ty> }
+            };
+            Ok(ScopedType { tokens, is_extern })
+        }
+        other => Ok(ScopedType {
+            tokens: scalar_rust_type(other, resolver)?,
+            is_extern: false,
+        }),
+    }
+}
+
+/// Collect the item names defined inside this message's `__buffa::oneof::…`
+/// module: its oneof enum idents and the sub-module names of nested
+/// messages (whose oneof trees nest inside). Used as the reserved set for
+/// idiomatic-import shortening — a `use` must never collide with one of
+/// these (E0255).
+fn oneof_module_scope_names(
+    msg: &DescriptorProto,
+    oneof_idents: &std::collections::HashMap<usize, Ident>,
+) -> std::collections::HashSet<String> {
+    let mut names: std::collections::HashSet<String> = oneof_idents
+        .values()
+        .map(|id| id.to_string().trim_start_matches("r#").to_string())
+        .collect();
+    for nested in &msg.nested_type {
+        // Map-entry synthetics never contribute a sub-module, but reserving
+        // their names is harmless (worst case: a reference stays qualified).
+        if let Some(name) = &nested.name {
+            names.insert(crate::oneof::to_snake_case(name));
+        }
+    }
+    names
 }
 
 /// Returns `true` when `features.enum_type` is CLOSED.

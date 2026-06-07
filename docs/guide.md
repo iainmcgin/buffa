@@ -192,6 +192,7 @@ The macro pulls in `OUT_DIR/<dotted.pkg>.mod.rs`, which in turn includes the per
 | `.generate_reflection(bool)` | `false` | Emit reflection support (vtable mode) plus an embedded per-package descriptor pool (see [Runtime reflection](#runtime-reflection)) |
 | `.reflect_mode(mode)` | `Off` | Finer-grained reflection selector: `ReflectMode::{Off, Bridge, VTable}` |
 | `.idiomatic_enum_aliases(bool)` | `true` | Emit `UpperCamelCase` associated-const aliases for enum values (see the aliases note under `EnumValue<T>`) |
+| `.idiomatic_imports(bool)` | `false` | **Experimental.** Emit `use`-backed short names for oneof variant types inside per-message modules instead of qualified paths; colliding names stay qualified. Currently covers oneof variant types only |
 | `.type_attribute(path, attr)` / `.message_attribute` / `.enum_attribute` | — | Attach a Rust attribute (e.g. an extra `#[derive(...)]`) to generated types matching a proto path prefix |
 | `.field_attribute(path, attr)` | — | Attach a Rust attribute to generated fields matching a proto path prefix |
 | `.use_buf()` | — | Use `buf build` instead of `protoc` for descriptor generation |
@@ -536,6 +537,7 @@ Passed via `opt:` (works for `remote:` and `local:`):
 | `arbitrary=true` | Emit `#[derive(arbitrary::Arbitrary)]` for fuzzing |
 | `gate_impls=true` | Wrap json/views/text impls in `#[cfg(feature = ...)]` for library crates whose generated code is a public dependency surface (default: emitted unconditionally) |
 | `with_setters=false` | Disable `with_<name>()` builder-style setters for explicit-presence fields (default: emitted) |
+| `idiomatic_imports=true` | **Experimental.** Emit `use`-backed short names for oneof variant types inside per-message modules instead of qualified paths (default: false) |
 | `reflection=true` | Emit reflection support (vtable mode) plus an embedded per-package descriptor pool — see [Runtime reflection](#runtime-reflection) |
 | `reflect_mode=off\|bridge\|vtable` | Finer-grained reflection selector; `reflection=true` is shorthand for `vtable` |
 | `extern_path=.pkg=::rust` | Map a proto package — or a single type, e.g. `extern_path=.pkg.Type=::rust::Type` — to an external Rust path |

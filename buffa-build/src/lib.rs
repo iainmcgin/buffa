@@ -386,6 +386,21 @@ impl Config {
         self
     }
 
+    /// **Experimental.** Emit idiomatic `use` imports inside per-message
+    /// ancillary modules instead of qualified type paths. Default: `false`
+    /// (output is byte-for-byte identical to previous releases).
+    ///
+    /// Currently covers **oneof variant types only** — struct fields and
+    /// impls live at package scope and keep qualified paths. A short name
+    /// that would collide with another item in the same generated module
+    /// (or a prelude/primitive name) stays qualified. See
+    /// [`CodeGenConfig::idiomatic_imports`] for details.
+    #[must_use]
+    pub fn idiomatic_imports(mut self, enabled: bool) -> Self {
+        self.codegen_config.idiomatic_imports = enabled;
+        self
+    }
+
     /// Enable or disable unknown field preservation (default: true).
     ///
     /// When enabled (the default), unrecognized fields encountered during

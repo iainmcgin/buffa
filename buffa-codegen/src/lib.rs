@@ -592,6 +592,26 @@ pub struct CodeGenConfig {
     /// backward-compatible, and the all-or-nothing rule guarantees correctness on
     /// any enum.
     pub idiomatic_enum_aliases: bool,
+    /// **Experimental.** Emit idiomatic `use` imports inside per-message
+    /// ancillary modules instead of qualified type paths (default: false).
+    ///
+    /// Currently covers **oneof variant types only**: message/enum types
+    /// referenced by oneof variants are emitted as short names backed by
+    /// `use` directives at the top of the message's `__buffa::oneof::…`
+    /// module, falling back to parent-module qualification and then
+    /// fully-qualified paths on name collisions. Owned struct fields,
+    /// impls, and view types live at package scope — which is assembled by
+    /// `include!`-merging an open-ended set of files — and keep qualified
+    /// paths there.
+    ///
+    /// Anti-shadowing: a short name that would collide with one of the
+    /// message's oneof enums, a nested-message sub-module, or a
+    /// prelude/primitive/crate name referenced bare by sibling generated
+    /// code stays qualified instead (see `ScopeImports` in `imports.rs`
+    /// for the full rules).
+    ///
+    /// When disabled, output is byte-for-byte identical to previous releases.
+    pub idiomatic_imports: bool,
 }
 
 impl Default for CodeGenConfig {
@@ -619,6 +639,7 @@ impl Default for CodeGenConfig {
             generate_reflection_vtable: false,
             gate_reflect_on_crate_feature: false,
             idiomatic_enum_aliases: true,
+            idiomatic_imports: false,
         }
     }
 }
