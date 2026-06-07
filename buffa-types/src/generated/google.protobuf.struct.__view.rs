@@ -60,13 +60,10 @@ impl<'a> StructView<'a> {
             let tag = ::buffa::encoding::Tag::decode(&mut cur)?;
             match tag.field_number() {
                 1u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 1u32,
-                            expected: 2u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::LengthDelimited,
+                    )?;
                     let entry_bytes = ::buffa::types::borrow_bytes(&mut cur)?;
                     let mut entry_cur: &'a [u8] = entry_bytes;
                     let mut key = "";
@@ -75,27 +72,17 @@ impl<'a> StructView<'a> {
                         let entry_tag = ::buffa::encoding::Tag::decode(&mut entry_cur)?;
                         match entry_tag.field_number() {
                             1 => {
-                                if entry_tag.wire_type()
-                                    != ::buffa::encoding::WireType::LengthDelimited
-                                {
-                                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                                        field_number: entry_tag.field_number(),
-                                        expected: 2u8,
-                                        actual: entry_tag.wire_type() as u8,
-                                    });
-                                }
+                                ::buffa::encoding::check_wire_type(
+                                    entry_tag,
+                                    ::buffa::encoding::WireType::LengthDelimited,
+                                )?;
                                 key = ::buffa::types::borrow_str(&mut entry_cur)?;
                             }
                             2 => {
-                                if entry_tag.wire_type()
-                                    != ::buffa::encoding::WireType::LengthDelimited
-                                {
-                                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                                        field_number: entry_tag.field_number(),
-                                        expected: 2u8,
-                                        actual: entry_tag.wire_type() as u8,
-                                    });
-                                }
+                                ::buffa::encoding::check_wire_type(
+                                    entry_tag,
+                                    ::buffa::encoding::WireType::LengthDelimited,
+                                )?;
                                 if depth == 0 {
                                     return Err(::buffa::DecodeError::RecursionLimitExceeded);
                                 }
@@ -486,13 +473,10 @@ impl<'a> ValueView<'a> {
             let tag = ::buffa::encoding::Tag::decode(&mut cur)?;
             match tag.field_number() {
                 1u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::Varint {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 1u32,
-                            expected: 0u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::Varint,
+                    )?;
                     view.kind = Some(
                         super::super::__buffa::view::oneof::value::Kind::NullValue(
                             ::buffa::EnumValue::from(
@@ -502,13 +486,10 @@ impl<'a> ValueView<'a> {
                     );
                 }
                 2u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::Fixed64 {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 2u32,
-                            expected: 1u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::Fixed64,
+                    )?;
                     view.kind = Some(
                         super::super::__buffa::view::oneof::value::Kind::NumberValue(
                             ::buffa::types::decode_double(&mut cur)?,
@@ -516,13 +497,10 @@ impl<'a> ValueView<'a> {
                     );
                 }
                 3u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 3u32,
-                            expected: 2u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::LengthDelimited,
+                    )?;
                     view.kind = Some(
                         super::super::__buffa::view::oneof::value::Kind::StringValue(
                             ::buffa::types::borrow_str(&mut cur)?,
@@ -530,13 +508,10 @@ impl<'a> ValueView<'a> {
                     );
                 }
                 4u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::Varint {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 4u32,
-                            expected: 0u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::Varint,
+                    )?;
                     view.kind = Some(
                         super::super::__buffa::view::oneof::value::Kind::BoolValue(
                             ::buffa::types::decode_bool(&mut cur)?,
@@ -544,13 +519,10 @@ impl<'a> ValueView<'a> {
                     );
                 }
                 5u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 5u32,
-                            expected: 2u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::LengthDelimited,
+                    )?;
                     if depth == 0 {
                         return Err(::buffa::DecodeError::RecursionLimitExceeded);
                     }
@@ -576,13 +548,10 @@ impl<'a> ValueView<'a> {
                     }
                 }
                 6u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 6u32,
-                            expected: 2u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::LengthDelimited,
+                    )?;
                     if depth == 0 {
                         return Err(::buffa::DecodeError::RecursionLimitExceeded);
                     }
@@ -1161,13 +1130,10 @@ impl<'a> ListValueView<'a> {
             let tag = ::buffa::encoding::Tag::decode(&mut cur)?;
             match tag.field_number() {
                 1u32 => {
-                    if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
-                        return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                            field_number: 1u32,
-                            expected: 2u8,
-                            actual: tag.wire_type() as u8,
-                        });
-                    }
+                    ::buffa::encoding::check_wire_type(
+                        tag,
+                        ::buffa::encoding::WireType::LengthDelimited,
+                    )?;
                     if depth == 0 {
                         return Err(::buffa::DecodeError::RecursionLimitExceeded);
                     }

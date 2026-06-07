@@ -1182,23 +1182,14 @@ pub(crate) fn is_non_default_expr(ty: Type, field_ident: &Ident) -> TokenStream 
 
 /// Generate a wire-type guard for a merge/decode match arm.
 ///
-/// Emits `if tag.wire_type() != <expected> { return Err(WireTypeMismatch { ... }) }`.
-/// Shared by both owned-type merge (`impl_message.rs`) and view decode (`view.rs`).
-pub(crate) fn wire_type_check(
-    field_number: u32,
-    wire_type: &TokenStream,
-    expected_byte: u8,
-) -> TokenStream {
+/// Emits `::buffa::encoding::check_wire_type(<tag>, <expected>)?;` — the
+/// comparison and `#[cold]` error construction live in the runtime, keeping
+/// each generated decode arm to one line. Shared by owned-type merge
+/// (`impl_message.rs`), view decode (`view.rs`), and map-entry loops
+/// (`tag_expr` is `tag` or `entry_tag` accordingly).
+pub(crate) fn wire_type_check(tag_expr: &TokenStream, wire_type: &TokenStream) -> TokenStream {
     quote! {
-        if tag.wire_type() != #wire_type {
-            return ::core::result::Result::Err(
-                ::buffa::DecodeError::WireTypeMismatch {
-                    field_number: #field_number,
-                    expected: #expected_byte,
-                    actual: tag.wire_type() as u8,
-                },
-            );
-        }
+        ::buffa::encoding::check_wire_type(#tag_expr, #wire_type)?;
     }
 }
 
@@ -1655,9 +1646,8 @@ fn scalar_merge_arm(
     let string_repr = field_string_repr(ctx, proto_fqn, field_name);
     let ident = make_field_ident(field_name);
     let wire_type = wire_type_token(ty);
-    let expected_byte = wire_type_byte(ty);
 
-    let wire_check = wire_type_check(field_number, &wire_type, expected_byte);
+    let wire_check = wire_type_check(&quote! { tag }, &wire_type);
 
     // Explicit-presence field: assign Some(decoded_value).
     if is_explicit_presence_scalar(field, ty, features) {
@@ -2059,9 +2049,8 @@ fn repeated_merge_arm(
 
     if ty == Type::TYPE_MESSAGE {
         let wire_check = wire_type_check(
-            field_number,
+            &quote! { tag },
             &quote! { ::buffa::encoding::WireType::LengthDelimited },
-            2u8,
         );
         return Ok(quote! {
             #field_number => {
@@ -2074,9 +2063,8 @@ fn repeated_merge_arm(
     }
     if ty == Type::TYPE_GROUP {
         let wire_check = wire_type_check(
-            field_number,
+            &quote! { tag },
             &quote! { ::buffa::encoding::WireType::StartGroup },
-            3u8,
         );
         return Ok(quote! {
             #field_number => {
@@ -2089,9 +2077,8 @@ fn repeated_merge_arm(
     }
     if !is_packed_type(ty) {
         let wire_check = wire_type_check(
-            field_number,
+            &quote! { tag },
             &quote! { ::buffa::encoding::WireType::LengthDelimited },
-            2u8,
         );
         let decode_expr = match ty {
             Type::TYPE_STRING if field_string_repr(ctx, proto_fqn, field_name).is_default() => {
@@ -2214,11 +2201,10 @@ fn repeated_merge_arm(
                 // This field accepts LengthDelimited (packed) or the element
                 // wire type (unpacked); report the packed wire type as expected.
                 return ::core::result::Result::Err(
-                    ::buffa::DecodeError::WireTypeMismatch {
-                        field_number: #field_number,
-                        expected: 2u8,
-                        actual: tag.wire_type() as u8,
-                    },
+                    ::buffa::encoding::wire_type_mismatch(
+                        tag,
+                        ::buffa::encoding::WireType::LengthDelimited,
+                    ),
                 );
             }
         }
@@ -2386,8 +2372,7 @@ fn oneof_merge_arm(
     string_repr: crate::StringRepr,
 ) -> TokenStream {
     let wire_type = wire_type_token(ty);
-    let wire_byte = wire_type_byte(ty);
-    let wire_check = wire_type_check(field_number, &wire_type, wire_byte);
+    let wire_check = wire_type_check(&quote! { tag }, &wire_type);
     match ty {
         Type::TYPE_STRING => {
             let decoded = if string_repr.is_default() {
@@ -2684,16 +2669,7 @@ fn map_element_decode_stmt(
     use_bytes: bool,
 ) -> TokenStream {
     let wire_type = wire_type_token(ty);
-    let wire_byte = wire_type_byte(ty);
-    let tag_check = quote! {
-        if entry_tag.wire_type() != #wire_type {
-            return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
-                field_number: entry_tag.field_number(),
-                expected: #wire_byte,
-                actual: entry_tag.wire_type() as u8,
-            });
-        }
-    };
+    let tag_check = wire_type_check(&quote! { entry_tag }, &wire_type);
     let closed = is_closed_enum(features);
     let assign = match ty {
         Type::TYPE_STRING => quote! { #var = ::buffa::types::decode_string(#buf_expr)?; },
@@ -2862,9 +2838,8 @@ fn map_merge_arm(
     let decode_key = map_element_decode_stmt(key_ty, &k, &buf_expr, &key_features, false);
     let decode_val = map_element_decode_stmt(val_ty, &v, &buf_expr, &val_features, value_use_bytes);
     let wire_check = wire_type_check(
-        field_number,
+        &quote! { tag },
         &quote! { ::buffa::encoding::WireType::LengthDelimited },
-        2u8,
     );
     Ok(quote! {
         #field_number => {
