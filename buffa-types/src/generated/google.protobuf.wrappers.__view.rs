@@ -121,9 +121,7 @@ impl<'a> ::buffa::ViewEncode<'a> for DoubleValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.value.to_bits() != 0u64 {
-            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Fixed64)
-                .encode(buf);
-            ::buffa::types::encode_double(self.value, buf);
+            ::buffa::types::put_double_field(1u32, self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -464,9 +462,7 @@ impl<'a> ::buffa::ViewEncode<'a> for FloatValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.value.to_bits() != 0u32 {
-            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Fixed32)
-                .encode(buf);
-            ::buffa::types::encode_float(self.value, buf);
+            ::buffa::types::put_float_field(1u32, self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -807,9 +803,7 @@ impl<'a> ::buffa::ViewEncode<'a> for Int64ValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.value != 0i64 {
-            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Varint)
-                .encode(buf);
-            ::buffa::types::encode_int64(self.value, buf);
+            ::buffa::types::put_int64_field(1u32, self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1150,9 +1144,7 @@ impl<'a> ::buffa::ViewEncode<'a> for UInt64ValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.value != 0u64 {
-            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Varint)
-                .encode(buf);
-            ::buffa::types::encode_uint64(self.value, buf);
+            ::buffa::types::put_uint64_field(1u32, self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1493,9 +1485,7 @@ impl<'a> ::buffa::ViewEncode<'a> for Int32ValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.value != 0i32 {
-            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Varint)
-                .encode(buf);
-            ::buffa::types::encode_int32(self.value, buf);
+            ::buffa::types::put_int32_field(1u32, self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1836,9 +1826,7 @@ impl<'a> ::buffa::ViewEncode<'a> for UInt32ValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.value != 0u32 {
-            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Varint)
-                .encode(buf);
-            ::buffa::types::encode_uint32(self.value, buf);
+            ::buffa::types::put_uint32_field(1u32, self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2179,9 +2167,7 @@ impl<'a> ::buffa::ViewEncode<'a> for BoolValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if self.value {
-            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Varint)
-                .encode(buf);
-            ::buffa::types::encode_bool(self.value, buf);
+            ::buffa::types::put_bool_field(1u32, self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2522,12 +2508,7 @@ impl<'a> ::buffa::ViewEncode<'a> for StringValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if !self.value.is_empty() {
-            ::buffa::encoding::Tag::new(
-                    1u32,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )
-                .encode(buf);
-            ::buffa::types::encode_string(&self.value, buf);
+            ::buffa::types::put_string_field(1u32, &self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2868,12 +2849,7 @@ impl<'a> ::buffa::ViewEncode<'a> for BytesValueView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if !self.value.is_empty() {
-            ::buffa::encoding::Tag::new(
-                    1u32,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )
-                .encode(buf);
-            ::buffa::types::encode_bytes(&self.value, buf);
+            ::buffa::types::put_bytes_field(1u32, &self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
